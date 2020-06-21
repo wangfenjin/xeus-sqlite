@@ -56,6 +56,17 @@ OPTION(XSQL_BUILD_TESTS "xeus-sqlite test suite" OFF)
 # Dependencies
 # ============
 
+# Fix OpenSSL build issue
+# https://stackoverflow.com/a/62063357
+if (APPLE)
+    # This is a bug in CMake that causes it to prefer the system version over
+    # the one in the specified ROOT folder.
+    set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /usr/local/Cellar/openssl@1.1/1.1.1g/)
+    set(OPENSSL_CRYPTO_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libcrypto.dylib CACHE FILEPATH "" FORCE)
+    set(OPENSSL_SSL_LIBRARY ${OPENSSL_ROOT_DIR}/lib/libssl.dylib CACHE FILEPATH "" FORCE)
+endif()
+find_package(OpenSSL REQUIRED)
+
 # Be sure to use recent versions
 set(xeus_REQUIRED_VERSION 0.23.10)
 
@@ -64,6 +75,9 @@ find_package(SQLite3 REQUIRED)
 find_package(SQLiteCpp REQUIRED)
 find_package(tabulate REQUIRED)
 find_package(Threads REQUIRED)
+
+include_directories(/usr/local/include)
+link_directories(/usr/local/lib)
 
 add_definitions(-DSQLITE_ENABLE_EXPLAIN_COMMENTS=1 -DSQLITE_DEBUG=1 -DSQLITE_MEMDEBUG=1)
 
@@ -104,7 +118,6 @@ set(XEUS_SQLITE_HEADERS
 # xeus-sqlite is the target for the library
 add_library(xeus-sqlite SHARED ${XEUS_SQLITE_SRC} ${XEUS_SQLITE_HEADERS})
 
-
 # xsqlite is the target for the kernel executable
 add_executable(xsqlite src/main.cpp)
 set_target_properties(xsqlite PROPERTIES ENABLE_EXPORTS 1)
@@ -132,6 +145,7 @@ target_link_libraries(xeus-sqlite PUBLIC
   xeus
   SQLiteCpp
   SQLite::SQLite3
+  clickhouse-cpp-lib
 )
 
 set_target_properties(xsqlite PROPERTIES

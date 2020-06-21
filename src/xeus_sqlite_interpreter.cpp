@@ -81,6 +81,11 @@ bool interpreter::is_magic(std::vector<std::string>& tokenized_code)
     }
 }
 
+void interpreter::connect_db(const std::vector<std::string> tokenized_code)
+{
+  client = std::make_unique<clickhouse::Client>(clickhouse::ClientOptions().SetHost("127.0.0.1").SetPort(8123).SetPingBeforeQuery(true));
+}
+
 void interpreter::load_db(const std::vector<std::string> tokenized_code)
 {
     /*
@@ -215,6 +220,9 @@ void interpreter::backup(std::string backup_type)
 
 void interpreter::parse_code(int execution_counter, const std::vector<std::string>& tokenized_code)
 {
+  if (tokenized_code[1] == "CONNECT") {
+    return connect_db(tokenized_code);
+  }
     if (tokenized_code[1] == "LOAD")
     {
         m_db_path = tokenized_code[2];
@@ -312,7 +320,7 @@ nl::json interpreter::execute_request_impl(int execution_counter,
             parse_code(execution_counter, tokenized_code);
         }
         //Runs SQLite code
-        else
+        else if (false)
         {
             nl::json pub_data;
 
@@ -356,6 +364,45 @@ nl::json interpreter::execute_request_impl(int execution_counter,
             {
                 query.exec();
             }
+        } else { // clickhouse
+          client->Select("SELECT COUNT(*) FROM tutorial.hits_local", [&] (const clickhouse::Block& block)
+              {
+                nl::json pub_data;
+
+                tabulate::Table plain_table;
+                std::stringstream html_table("");
+
+                std::vector<std::variant<std::string, tabulate::Table>> column_names;
+                html_table << "<table>\n<tr>\n";
+                int columnCount = 0;
+                for (clickhouse::Block::Iterator bi(block); bi.IsValid(); bi.Next()) {
+                  std::string name = bi.Name();
+                  column_names.push_back(name);
+                  columnCount += 1;
+                  html_table << "<th>" << name << "</th>\n";
+                }
+                plain_table.add_row(column_names);
+                html_table << "</tr>\n";
+
+                for (size_t i = 0; i < block.GetRowCount(); ++i) {
+                  html_table << "<tr>\n";
+                  std::vector<std::variant<std::string, tabulate::Table>> row;
+                  for (int column = 0; column < columnCount; column++) {
+                    std::string cell = std::string((*block[column]->As<clickhouse::ColumnString>())[i]);
+                    row.push_back(cell);
+                    html_table << "<td>" << cell << "</td>\n";
+                  }
+                  html_table << "</tr>\n";
+                  plain_table.add_row(row);
+                }
+
+                html_table << "</table>";
+
+                pub_data["text/plain"] = plain_table.str();
+                pub_data["text/html"] = html_table.str();
+                publish_execution_result(execution_counter, std::move(pub_data), nl::json::object());
+              }
+          ); 
         }
 
         nl::json jresult;

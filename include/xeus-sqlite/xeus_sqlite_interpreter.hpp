@@ -13,6 +13,8 @@
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <SQLiteCpp/VariadicBind.h>
 
+#include <clickhouse/client.h>
+
 #include "xeus/xinterpreter.hpp"
 #include "nlohmann/json.hpp"
 #include "xeus_sqlite_config.hpp"
@@ -75,6 +77,7 @@ namespace xeus_sqlite
          * return void
          */
         void load_db(const std::vector<std::string> tokenized_code);
+        void connect_db(const std::vector<std::string> tokenized_code);
 
         /*! \brief create_db - creates a database.
          *
@@ -168,6 +171,8 @@ namespace xeus_sqlite
         std::unique_ptr<SQLite::Database> m_backup_db = nullptr;
         bool m_bd_is_loaded = false;
         std::string m_db_path;
+
+        std::unique_ptr<clickhouse::Client> client;
     };
 
     /**
